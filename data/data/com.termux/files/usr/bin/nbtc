@@ -1,0 +1,45 @@
+#!/bin/bash
+file=$1
+if ! [ -f "$file.nbtc" ]; then
+    echo "Error: File Not Found"
+    exit 1
+fi
+a=$(head -n 1 "$file.nbtc" | grep "new nbt ~~ [^;]*;")
+if [ -z "$a" ]; then
+    echo "Error: The first line must be new nbt ~~ filename"
+    exit 1
+fi
+
+b=${a//;/}
+nbtfilename=${b:11}.nbt
+printf "\x0A" >> $nbtfilename
+printf "\x00\x04" >> $nbtfilename
+printf "root" >> $nbtfilename
+echo "The basic framework of NBT has been created"
+
+grep -oE "Tag\([0-9], \".*\", [0-9\.]+\);" "$file.nbtc" | while read -r tag; do
+    if [[ "$tag" =~ Tag\(([0-9]),[[:space:]]*\"([^\"]+)\",[[:space:]]*([0-9.]+)\) ]]; then
+        type=${BASH_REMATCH[1]}
+        name=${BASH_REMATCH[2]}
+        value=${BASH_REMATCH[3]}
+        case ${type} in
+            1)
+                printf "\x01" >> $nbtfilename
+                printf "\x00" >> $nbtfilename
+                printf "\\$(printf "%03o" ${#name})" >> $nbtfilename
+                printf "$name" >> $nbtfilename
+                printf "\\$(printf "%03o" $value)" >> $nbtfilename
+                echo "add byte tag, name=$name, value=$value"
+                ;;
+            2)
+                printf "\x02" >> $nbtfilename
+                printf "\x00" >> $nbtfilename
+                printf "\\$(printf "%03o" ${#name})" >> $nbtfilename
+                printf "$name" >> $nbtfilename
+                printf "\\$(printf "%03o" $(( (value >> 8) & 0xFF )))" >> $nbtfilename
+                printf "\\$(printf "%03o" $(( value & 0xFF )))" >> $nbtfilename
+                echo "add short tag, name=$name, value=$value"
+        esac
+    fi
+done
+printf "\x00" >> $nbtfilename
