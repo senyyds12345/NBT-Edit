@@ -1,0 +1,81 @@
+#!/bin/bash
+signal2() {
+    echo "Write \"x00\" at the end of the file"
+    printf "\x00" >> $name.nbt
+    exit 130
+}
+
+main() {
+while true; do
+    read -p "commandLine>> " command
+    case ${command} in
+        "quit")
+            echo "good bye!"
+            printf "\x00" >> $name.nbt
+            exit 0
+            ;;
+        "TAG 1")
+            read -p "tag>> " tag
+            read -p "value>> " value
+            printf "\x01" >> $name.nbt
+            printf "\x00" >> $name.nbt
+            printf "\\$(printf "%03o" ${#tag})" >> $name.nbt
+            printf "$tag" >> $name.nbt   
+            printf "\\$(printf "%03o" $value)" >> $name.nbt
+            echo "write new byte tag $tag, value is $value"
+            ;;
+        "TAG 2")
+            read -p "tag>> " tag
+            read -p "value>> " value
+            printf "\x02" >> $name.nbt
+            printf "\x00" >> $name.nbt
+            printf "\\$(printf "%03o" ${#tag})" >> $name.nbt
+            printf "$tag" >> $name.nbt
+            printf "\\$(printf "%03o" $(( (value >> 8) & 0xFF )))" >> $name.nbt
+            printf "\\$(printf "%03o" $(( value & 0xFF )))" >> $name.nbt
+            echo "write new short tag $tag, value is $value"
+            ;;
+        "TAG 3")
+            read -p "tag>> " tag
+            read -p "value>> " value
+            printf "\x03" >> $name.nbt
+            printf "\x00" >> $name.nbt
+            printf "\\$(printf "%03o" ${#tag})" >> $name.nbt
+            printf "$tag" >> $name.nbt
+            printf "\\$(printf "%03o" $(( (value >> 24) & 0xFF)))" >> $name.nbt
+            printf "\\$(printf "%03o" $(( (value >> 16) & 0xFF)))" >> $name.nbt
+            printf "\\$(printf "%03o" $(( (value >> 8) & 0xFF)))" >> $name.nbt
+            printf "\\$(printf "%03o" $((value & 0xFF)))" >> $name.nbt
+            echo "write new int tag $tag, value is $value"
+            ;;
+        "TAG 4")
+            read -p "tag>> " tag
+            read -p "value>> " value
+            printf "\x04" >> $name.nbt
+            printf "\x00" >> $name.nbt
+            printf "\\$(printf "%03o" ${#tag})" >> $name.nbt
+            printf "$tag" >> $name.nbt
+            fb=$(perl -e "printf '%02X%02X%02X%02X', unpack('C4', pack('f', $value))")
+            printf "\\$(printf "%03o" $((0x${fb:0:2})))" >> $name.nbt
+            printf "\\$(printf "%03o" $((0x${fb:2:2})))" >> $name.nbt
+            printf "\\$(printf "%03o" $((0x${fb:4:2})))" >> $name.nbt
+            printf "\\$(printf "%03o" $((0x${fb:6:2})))" >> $name.nbt
+            echo "write new float tag $tag, value is $value"
+            ;;
+    esac
+done
+}
+
+trap signal2 SIGINT
+
+name=$1
+if [ -f $name.nbt ]; then
+   truncate -s -1 $name.nbt
+   main
+fi
+echo -n > $name.nbt
+printf "\x0A" >> $name.nbt
+printf "\x00\x04" >> $name.nbt
+printf "root" >> $name.nbt
+echo "The NBT file framework has been created successfully"
+main
